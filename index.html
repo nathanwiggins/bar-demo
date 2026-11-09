@@ -1,0 +1,2268 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Grant Budget Availability Report (Demo)</title>
+  <meta name="description" content="Demo of a grant budget dashboard built on Google Apps Script, running on made-up sample data.">
+  <!-- Demo only: banner styles -->
+  <link rel="stylesheet" href="demo.css">
+
+  <style>
+        /* ==========================================================================
+      1. GLOBAL RESETS & BASE STYLES
+      ========================================================================== */
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #f4f6f9;
+      color: #333;
+      margin: 0;
+      padding: 0;
+    }
+
+    /* ==========================================================================
+      2. MAIN LAYOUT CONTAINER
+      ========================================================================== */
+    .report-container {
+      width: 100%;
+      min-height: 100vh;
+      background: #ffffff;
+      border-bottom: 1px solid #dcdcdc;
+      padding: 20px;
+      box-sizing: border-box;
+    }
+
+    /* ==========================================================================
+      3. STICKY HEADER & RED LINE BORDER
+      ========================================================================== */
+    .header-block {
+      display: flex;
+      flex-direction: row; 
+      justify-content: space-between; 
+      align-items: flex-start;
+      gap: 30px;
+      
+      /* Creates the red accent baseline */
+      border-bottom: 2px solid #860011;
+      
+      padding-bottom: 15px;
+      margin-bottom: 20px;
+    }
+
+    /* Sticky wrapper around the header + NavBar so both stay visible together */
+    .sticky-header {
+      position: -webkit-sticky;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background-color: #ffffff;
+      
+      /* Offsets padding of parent .report-container */
+      margin-top: -20px;
+      padding-top: 20px;
+    }
+
+    .header-top-row {
+      display: flex;
+      flex-direction: column; 
+      justify-content: flex-start;
+      align-items: flex-end; 
+      flex: 1;
+      gap: 15px;
+    }
+
+    /* --- Branding & Typography --- */
+    .suu-branding img {
+      display: block;
+      /* 2x the original size (178px wide). The image has large white margins,
+        so crop them top/bottom rather than making the header 200px tall. */
+      width: 356px;
+      height: 100px;
+      object-fit: cover;
+    }
+
+    .suu-branding h2 {
+      color: #860011;
+      margin: 0;
+      font-size: 1.2rem;
+    }
+
+    .report-title h1 {
+      margin: 0;
+      font-size: 1.6rem;
+      line-height: 1.2;
+      text-align: right;
+    }
+
+    /* ==========================================================================
+      4. NAVIGATION BAR (Positioned Directly Below Red Line)
+      ========================================================================== */
+    ul.NavBar {
+      display: flex;
+      flex-direction: row;
+      justify-content: flex-start; 
+      gap: 20px; 
+      list-style-type: none;
+      
+      /* Stays below the red line because it sits inside .sticky-header */
+      margin: 0;
+      padding: 0;
+      /* visible (not hidden) so the BAR Tools / BAR Reports dropdowns can extend below the bar */
+      overflow: visible;
+      background-color: #bde3f3;
+    }
+
+    ul.NavBar li {
+      display: flex; 
+    }
+
+    ul.NavBar li a {
+      text-decoration: none;
+      text-align: center;
+      padding: 8px 8px;
+      color: #004085;
+      font-size: 0.95rem;
+      font-weight: bold;
+      /* Cleaned up: float removed as it breaks inside flexboxes */
+    }
+
+    ul.NavBar li a:hover {
+      text-decoration: none;
+      background-color: #33b4df;
+    }
+
+    /* ==========================================================================
+      5. FORM META META DATA & INPUTS
+      ========================================================================== */
+    .report-meta-container {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      width: 100%;
+      max-width: 560px; 
+      margin-top: 5px;
+    }
+
+    .meta-row {
+      display: flex;
+      align-items: center;
+      width: 100%;
+    }
+
+    .meta-row label {
+      font-size: 0.85rem;
+      font-weight: bold;
+      color: #333;
+      width: 110px;
+      white-space: nowrap;
+    }
+
+    .meta-row input {
+      flex: 1;
+      padding: 6px 10px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      font-size: 0.85rem;
+      box-sizing: border-box;
+    }
+
+    .meta-row input:focus {
+      border-color: #860011;
+      outline: none;
+    }
+
+    /* ==========================================================================
+      6. GRID LAYOUTS & SPLITS
+      ========================================================================== */
+    .parameters-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      margin-top: 20px;
+      margin-bottom: 25px;
+      background: #f9f9f9;
+      padding: 15px;
+      border: 1px solid #e1e1e1;
+    }
+
+    .param-item {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .param-item label {
+      font-size: 0.75rem;
+      font-weight: bold;
+      color: #666;
+      margin-bottom: 4px;
+      text-transform: uppercase;
+    }
+
+    .param-item > span {
+      background: #fff;
+      padding: 6px;
+      border: 1px solid #ccc;
+      font-size: 0.9rem;
+    }
+
+    .lower-split {
+      display: grid;
+      grid-template-columns: minmax(0, 3fr) minmax(0, 5fr);
+      gap: 20px;
+      align-items: start;
+    }
+
+    /* ==========================================================================
+      7. TABLES
+      ========================================================================== */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 25px;
+      font-size: 0.85rem;
+    }
+
+    th, td {
+      border: 1px solid #dcdcdc;
+      padding: 8px 10px;
+      text-align: right;
+    }
+
+    th, .text-left {
+      text-align: left;
+      background-color: #f1f1f1;
+      font-weight: bold;
+    }
+
+    .summary-total-row {
+      background-color: #fafafa;
+      font-weight: bold;
+    }
+
+    /* ==========================================================================
+      8. MISCELLANEOUS UTILITIES & CARD COMPONENTS
+      ========================================================================== */
+    .section-title {
+      font-size: 1.1rem;
+      margin: 0 0 10px 0;
+      color: #444;
+      border-bottom: 1px solid #ccc;
+      padding-bottom: 4px;
+    }
+
+    .status-box {
+      border: 1px solid #ccc;
+      padding: 12px 14px;
+      border-radius: 4px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      font-size: 0.85rem;
+    }
+
+    .status-box strong {
+      font-size: 0.9rem;
+    }
+
+    /* --- Contextual Status Colors --- */
+    .bg-blue   { background-color: #e6f2ff; border-color: #b3d7ff; color: #004085; }
+    .bg-green  { background-color: #d4edda; border-color: #c3e6cb; color: #155724; }
+    .bg-yellow { background-color: #fff3cd; border-color: #ffeeba; color: #856404; }
+    .bg-red    { background-color: #f8d7da; border-color: #f5c6cb; color: #721c24; }
+
+    /* ==========================================================================
+      9. NOTES COMPONENT
+      ========================================================================== */
+    .notes-container {
+      margin-top: 20px;
+      background: #ffffff;
+      padding: 20px;
+      border: 1px solid #e1e1e1;
+      border-radius: 4px;
+    }
+
+    .notes-container textarea {
+      width: 100%;
+      height: 120px; 
+      padding: 12px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      font-family: Arial, sans-serif;
+      font-size: 0.9rem;
+      line-height: 1.5;
+      box-sizing: border-box;
+      resize: vertical; 
+    }
+
+    .notes-container textarea:focus {
+      border-color: #860011;
+      outline: none;
+      box-shadow: 0 0 5px rgba(134, 0, 17, 0.1);
+    }
+
+    .notes-status {
+      font-size: 0.75rem;
+      color: #666;
+      margin-top: 6px;
+      text-align: right;
+      font-style: italic;
+    }
+
+    /* ==========================================================================
+      10. HEADER META (Grant Title, PI Name, Risk Level)
+      ========================================================================== */
+    .meta-row span {
+      flex: 0 1 210px;
+      padding: 6px 10px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      font-size: 0.85rem;
+    }
+
+    .meta-row span:not(.risk-badge) {
+      background: #fafafa;
+    }
+
+    .meta-row #grant-title {
+      flex: 1;
+    }
+
+    .meta-row span.risk-badge {
+      flex: 0 0 auto;
+      min-width: 90px;
+      text-align: center;
+      font-weight: bold;
+    }
+
+    /* Same colors as the Risk Level column in the project picker */
+    .risk-high     { background-color: #ff9999; font-weight: bold; }
+    .risk-moderate { background-color: #fff3b0; font-weight: bold; }
+    .risk-low      { background-color: #b6e3b6; font-weight: bold; }
+
+    /* ==========================================================================
+      11. NAV DROPDOWNS (BAR Tools / BAR Reports)
+      ========================================================================== */
+    .nav-dropdown {
+      position: relative;
+    }
+
+    .nav-toggle,
+    .nav-menu button {
+      font-family: inherit;
+      background: none;
+      border: 0;
+      cursor: pointer;
+    }
+
+    .nav-toggle {
+      padding: 8px 8px;
+      color: #004085;
+      font-size: 0.95rem;
+      font-weight: bold;
+    }
+
+    .nav-toggle:hover,
+    .nav-dropdown:focus-within .nav-toggle {
+      background-color: #33b4df;
+    }
+
+    .nav-menu {
+      display: none;
+      position: absolute;
+      top: 100%;
+      left: 0;
+      min-width: 240px;
+      list-style-type: none;
+      background: #ffffff;
+      border: 1px solid #ccc;
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.12);
+      z-index: 101;
+    }
+
+    .nav-dropdown:hover .nav-menu,
+    .nav-dropdown:focus-within .nav-menu {
+      display: block;
+    }
+
+    .nav-menu button {
+      display: block;
+      width: 100%;
+      padding: 8px 12px;
+      text-align: left;
+      color: #333;
+      font-size: 0.9rem;
+    }
+
+    .nav-menu button:hover {
+      background-color: #e6f2ff;
+    }
+
+    /* ==========================================================================
+      12. ACCOUNT CATEGORY COLORS (match the spreadsheet's row fills)
+      ========================================================================== */
+    .cat-salaries td { background-color: #f4cccc; }
+    .cat-fringe td   { background-color: #fce5cd; }
+    .cat-expense td  { background-color: #fff2cc; }
+    .cat-travel td   { background-color: #d9ead3; }
+    .cat-indirect td { background-color: #cfe2f3; }
+    .cat-other td    { background-color: #ead1dc; }
+
+    /* Bar showing available balance as a share of budget (sheet column G).
+      Zero or negative balances show an empty bar; negatives add the alert icon.
+      The bar stretches to fill the cell. Every row's amount gets the same width
+      (--avail-amount-width, set from the longest amount) and the icon slot only
+      shows when some row is negative, so the bars line up. */
+    .avail-wrap {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .avail-bar {
+      flex: 1 1 60px;
+      min-width: 60px;
+      height: 10px;
+      border: 1px solid #999;
+      background: linear-gradient(to right, #666 var(--pct), transparent var(--pct));
+    }
+
+    .avail-slot {
+      flex: 0 0 16px;
+      display: flex;
+    }
+
+    #accounts-table:not(.has-negative) .avail-slot {
+      display: none;
+    }
+
+    .avail-amount {
+      flex: 0 0 auto;
+      min-width: var(--avail-amount-width, auto);
+      text-align: right;
+      white-space: nowrap;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .icon-alert {
+      flex: 0 0 auto;
+      width: 16px;
+      height: 16px;
+      color: #c62828;
+    }
+
+    /* Completion Rate progress bar (fill capped at 100%) */
+    .progress-field {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .progress-bar {
+      flex: 1;
+      height: 10px;
+      background-color: #e9ecef;
+      border: 1px solid #ccc;
+      border-radius: 5px;
+      overflow: hidden;
+    }
+
+    .progress-fill {
+      display: block;
+      height: 100%;
+      width: min(var(--pct), 100%);
+      background-color: #33b4df;
+    }
+
+    .progress-text {
+      flex: 0 0 auto;
+      min-width: 60px;
+      text-align: right;
+    }
+
+    /* Ledger column widths: name gets the room, code is narrow, amount fits currency */
+    #ledger-table col.col-code   { width: 70px; }
+    #ledger-table col.col-amount { width: 130px; }
+    #ledger-table td:nth-child(2) { text-align: center; }
+
+    .table-footnote {
+      margin: -18px 0 25px 0;
+      font-size: 0.75rem;
+      font-style: italic;
+      color: #777;
+    }
+
+    /* ==========================================================================
+      13. STATUS CARDS (two-column grid in the side column)
+      ========================================================================== */
+    .status-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    /* Darker accent stripe on the left, in each card's text color */
+    .status-grid .status-box {
+      border-left-width: 4px;
+      border-left-color: currentColor;
+    }
+
+    .status-label {
+      font-size: 0.7rem;
+      font-weight: bold;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .status-box .status-value {
+      font-size: 1.4rem;
+    }
+
+    .status-box .status-chip {
+      font-size: 1rem;
+    }
+
+    .status-detail {
+      font-size: 0.8rem;
+      line-height: 1.4;
+      color: #333;
+    }
+
+    /* ==========================================================================
+      13b. PROJECT NOTES COMMENT LOG
+      ========================================================================== */
+    .comment-log {
+      list-style: none;
+      max-height: 260px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+
+    .comment {
+      padding: 8px 12px;
+      background-color: #f9f9f9;
+      border: 1px solid #e1e1e1;
+      border-left: 3px solid #33b4df;
+      border-radius: 4px;
+      font-size: 0.85rem;
+      line-height: 1.4;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+    }
+
+    .comment-empty {
+      font-size: 0.85rem;
+      font-style: italic;
+      color: #777;
+    }
+
+    .comment-add {
+      display: flex;
+      gap: 8px;
+    }
+
+    .comment-add input {
+      flex: 1;
+      padding: 6px 10px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      font-size: 0.85rem;
+    }
+
+    .comment-add input:focus {
+      border-color: #860011;
+      outline: none;
+    }
+
+    .notes-raw {
+      margin-top: 10px;
+      font-size: 0.8rem;
+    }
+
+    .notes-raw summary {
+      cursor: pointer;
+      color: #004085;
+      margin-bottom: 8px;
+    }
+
+    /* ==========================================================================
+      14. ADDITIONAL REVIEWERS & FOOTER
+      ========================================================================== */
+    .reviewers-container {
+      margin-top: 20px;
+      background: #ffffff;
+      padding: 20px;
+      border: 1px solid #e1e1e1;
+      border-radius: 4px;
+    }
+
+    .reviewer-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+      font-size: 0.85rem;
+    }
+
+    .reviewer-row label {
+      font-weight: bold;
+    }
+
+    .reviewer-row select {
+      width: 150px;
+      padding: 4px 6px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      font-size: 0.85rem;
+    }
+
+    .last-import {
+      margin-top: 20px;
+      text-align: right;
+      font-size: 0.8rem;
+      font-style: italic;
+      color: #777;
+    }
+
+    /* ==========================================================================
+      15. DIALOGS (project picker, assignments, report viewers)
+      ========================================================================== */
+    .report-dialog {
+      width: 90vw;
+      max-width: 600px;
+      margin: auto;
+      padding: 20px;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+    }
+
+    .report-dialog.dialog-wide {
+      max-width: 1100px;
+    }
+
+    .report-dialog::backdrop {
+      background: rgba(0, 0, 0, 0.4);
+    }
+
+    .dialog-table-wrap {
+      max-height: 60vh;
+      overflow: auto;
+    }
+
+    .dialog-table-wrap table {
+      margin-bottom: 0;
+    }
+
+    .dialog-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+      margin-top: 15px;
+    }
+
+    .btn-primary,
+    .btn-secondary,
+    .btn-small {
+      font-family: inherit;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+
+    .btn-primary {
+      padding: 6px 14px;
+      font-size: 0.85rem;
+      color: #ffffff;
+      background-color: #860011;
+      border: 1px solid #860011;
+    }
+
+    .btn-secondary {
+      padding: 6px 14px;
+      font-size: 0.85rem;
+      color: #333;
+      background-color: #ffffff;
+      border: 1px solid #ccc;
+    }
+
+    .btn-small {
+      padding: 3px 8px;
+      font-size: 0.75rem;
+      background-color: #ffffff;
+      border: 1px solid #ccc;
+    }
+
+    .picker-filters {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+      margin-bottom: 15px;
+    }
+
+    .picker-filters label,
+    .assignment-form label {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      font-size: 0.75rem;
+      font-weight: bold;
+      color: #666;
+    }
+
+    .picker-filters .checkbox-label {
+      flex-direction: row;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .picker-filters input[type="text"],
+    .picker-filters select,
+    .assignment-form input {
+      padding: 6px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      font-size: 0.85rem;
+    }
+
+    .assignment-form {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    /* ==========================================================================
+      16. EMPTY STATE (no grant project loaded)
+      ========================================================================== */
+    .report-container[data-state="empty"] .grant-content {
+      display: none;
+    }
+
+    /* Hidden but still taking up space, so the header doesn't change height */
+    .report-container[data-state="empty"] .report-meta-container {
+      visibility: hidden;
+    }
+
+    .report-container:not([data-state="empty"]) .empty-state {
+      display: none;
+    }
+
+    .empty-state {
+      max-width: 520px;
+      margin: 60px auto;
+      padding: 40px 30px;
+      text-align: center;
+      background: #f9f9f9;
+      border: 1px dashed #ccc;
+      border-radius: 6px;
+      color: #555;
+    }
+
+    .empty-icon {
+      width: 48px;
+      height: 48px;
+      margin-bottom: 12px;
+      color: #860011;
+    }
+
+    .empty-state h2 {
+      margin-bottom: 8px;
+      font-size: 1.3rem;
+      color: #333;
+    }
+
+    .empty-state p {
+      margin-bottom: 20px;
+      font-size: 0.9rem;
+      line-height: 1.5;
+    }
+
+    .nav-menu button:disabled,
+    .nav-menu button:disabled:hover {
+      color: #aaa;
+      background: none;
+      cursor: not-allowed;
+    }
+
+    /* ==========================================================================
+      17. LIVE DATA HELPERS (picker, reports, messages)
+      ========================================================================== */
+    /* Plain left-aligned cell (.text-left also makes the cell bold and gray) */
+    .cell-left {
+      text-align: left;
+    }
+
+    .bg-gray { background-color: #eceff1; border-color: #cfd8dc; color: #455a64; }
+
+    .empty-row {
+      text-align: left;
+      font-style: italic;
+      color: #666;
+    }
+
+    .dialog-info {
+      margin: 0 0 10px 0;
+      font-size: 0.8rem;
+      color: #666;
+    }
+
+    .dialog-actions .dialog-info {
+      margin: 0 auto 0 0;
+      align-self: center;
+    }
+
+    #picker-table tbody tr {
+      cursor: pointer;
+    }
+
+    #picker-table tbody tr:hover td {
+      background-color: #f4f9ff;
+    }
+
+    #picker-table tbody tr.selected td {
+      background-color: #cce5ff;
+    }
+
+    /* Click a header to sort by it, again to reverse */
+    #picker-table th[data-sort] {
+      cursor: pointer;
+      user-select: none;
+    }
+
+    #picker-table th[data-sort]:hover {
+      background-color: #e4e4e4;
+    }
+
+    #picker-table th[aria-sort="ascending"]::after,
+    #picker-table th[aria-sort="descending"]::after {
+      margin-left: 4px;
+      font-size: 0.7em;
+    }
+
+    #picker-table th[aria-sort="ascending"]::after { content: "\25B2"; }
+    #picker-table th[aria-sort="descending"]::after { content: "\25BC"; }
+
+    .none-text {
+      color: #999;
+      font-style: italic;
+    }
+
+    .confirm-message {
+      white-space: pre-line;
+      font-size: 0.9rem;
+      line-height: 1.5;
+    }
+
+    .form-error {
+      min-height: 1em;
+      font-size: 0.8rem;
+      color: #c62828;
+    }
+
+    .cc-emails {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .cc-label {
+      font-size: 0.75rem;
+      font-weight: bold;
+      color: #666;
+    }
+
+    .cc-emails .btn-small {
+      align-self: flex-start;
+    }
+
+    .email-row {
+      display: flex;
+      gap: 6px;
+    }
+
+    .email-row input {
+      flex: 1;
+      padding: 6px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      font-size: 0.85rem;
+    }
+
+    .loading-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 200;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(255, 255, 255, 0.6);
+    }
+
+    .loading-overlay[hidden] {
+      display: none;
+    }
+
+    .loading-box {
+      display: flex;
+      align-items: center;
+      padding: 12px 22px 14px;
+      background: #ffffff;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+      font-size: 0.9rem;
+    }
+
+    /* Loading animation: the SPARC rat eating a trail of cheese crumbs.
+       The crumbs and ground slide right at the same speed (40px/s), so the rat looks
+       like it walks left along the trail. A crumb reaches the mouth every 0.8s and
+       the rat's bite, crumb bits and "nom" are timed to that. */
+    .rat-loader {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 2px;
+      animation: rat-appear 0.25s ease-out 0.12s both;
+    }
+
+    .rat-stage {
+      position: relative;
+      width: 240px;
+      height: 86px;
+      overflow: hidden;
+    }
+
+    .rat-trail {
+      position: absolute;
+      inset: 0;
+      -webkit-mask-image: linear-gradient(to right, transparent, #000 48px);
+      mask-image: linear-gradient(to right, transparent, #000 48px);
+    }
+
+    .rat-ground {
+      position: absolute;
+      left: -8px;
+      right: 0;
+      bottom: 15px;
+      height: 2px;
+      background: repeating-linear-gradient(to right, #e6d8bd 0 4px, transparent 4px 8px);
+      animation: rat-ground 0.2s linear infinite;
+    }
+
+    .rat-crumb {
+      position: absolute;
+      left: 0;
+      bottom: 16px;
+      width: 20px;
+      height: 16px;
+      overflow: visible;
+      animation: rat-crumb 4s linear infinite;
+      animation-delay: calc(var(--i) * -0.8s);
+    }
+
+    .rat-walk {
+      position: absolute;
+      right: 6px;
+      bottom: -6px;
+      width: 76px;
+      height: 76px;
+      animation: rat-bob 0.4s ease-in-out infinite;
+    }
+
+    .rat {
+      width: 100%;
+      height: 100%;
+      background: url("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAgAAAAIACAYAAAD0eNT6AAAACXBIWXMAAEuqAABLqgE8yTPtAAAGoGlUWHRYTUw6Y29tLmFkb2JlLnhtcAAAAAAAPD94cGFja2V0IGJlZ2luPSLvu78iIGlkPSJXNU0wTXBDZWhpSHpyZVN6TlRjemtjOWQiPz4gPHg6eG1wbWV0YSB4bWxuczp4PSJhZG9iZTpuczptZXRhLyIgeDp4bXB0az0iQWRvYmUgWE1QIENvcmUgOS4xLWMwMDIgNzkuYTFjZDEyZjQxLCAyMDI0LzExLzA4LTE2OjA5OjIwICAgICAgICAiPiA8cmRmOlJERiB4bWxuczpyZGY9Imh0dHA6Ly93d3cudzMub3JnLzE5OTkvMDIvMjItcmRmLXN5bnRheC1ucyMiPiA8cmRmOkRlc2NyaXB0aW9uIHJkZjphYm91dD0iIiB4bWxuczp4bXA9Imh0dHA6Ly9ucy5hZG9iZS5jb20veGFwLzEuMC8iIHhtbG5zOmRjPSJodHRwOi8vcHVybC5vcmcvZGMvZWxlbWVudHMvMS4xLyIgeG1sbnM6cGhvdG9zaG9wPSJodHRwOi8vbnMuYWRvYmUuY29tL3Bob3Rvc2hvcC8xLjAvIiB4bWxuczp4bXBNTT0iaHR0cDovL25zLmFkb2JlLmNvbS94YXAvMS4wL21tLyIgeG1sbnM6c3RFdnQ9Imh0dHA6Ly9ucy5hZG9iZS5jb20veGFwLzEuMC9zVHlwZS9SZXNvdXJjZUV2ZW50IyIgeG1wOkNyZWF0b3JUb29sPSJBZG9iZSBQaG90b3Nob3AgMjYuNCAoTWFjaW50b3NoKSIgeG1wOkNyZWF0ZURhdGU9IjIwMjUtMDktMTdUMDk6NTU6MjMtMDY6MDAiIHhtcDpNb2RpZnlEYXRlPSIyMDI1LTA5LTE3VDA5OjU4OjQwLTA2OjAwIiB4bXA6TWV0YWRhdGFEYXRlPSIyMDI1LTA5LTE3VDA5OjU4OjQwLTA2OjAwIiBkYzpmb3JtYXQ9ImltYWdlL3BuZyIgcGhvdG9zaG9wOkNvbG9yTW9kZT0iMyIgeG1wTU06SW5zdGFuY2VJRD0ieG1wLmlpZDowNWU3ODY1YS0yYmMwLTRiMjItODVjMi05YjhkYjIyYzM5MTEiIHhtcE1NOkRvY3VtZW50SUQ9ImFkb2JlOmRvY2lkOnBob3Rvc2hvcDo4YjViZTFjZS1lNDc0LTM2NGItOGNlZC01YjI5Zjg3M2NhZTYiIHhtcE1NOk9yaWdpbmFsRG9jdW1lbnRJRD0ieG1wLmRpZDpmYTA0MDBmYS01MTY0LTQxZTUtODYzOS04ZjlkNzBjNThiM2MiPiA8eG1wTU06SGlzdG9yeT4gPHJkZjpTZXE+IDxyZGY6bGkgc3RFdnQ6YWN0aW9uPSJjcmVhdGVkIiBzdEV2dDppbnN0YW5jZUlEPSJ4bXAuaWlkOmZhMDQwMGZhLTUxNjQtNDFlNS04NjM5LThmOWQ3MGM1OGIzYyIgc3RFdnQ6d2hlbj0iMjAyNS0wOS0xN1QwOTo1NToyMy0wNjowMCIgc3RFdnQ6c29mdHdhcmVBZ2VudD0iQWRvYmUgUGhvdG9zaG9wIDI2LjQgKE1hY2ludG9zaCkiLz4gPHJkZjpsaSBzdEV2dDphY3Rpb249InNhdmVkIiBzdEV2dDppbnN0YW5jZUlEPSJ4bXAuaWlkOjhlZjUxYTJhLWM0YjctNDcwOS05YjA3LTdjZDkyODIzMGRhMCIgc3RFdnQ6d2hlbj0iMjAyNS0wOS0xN1QwOTo1ODoxOS0wNjowMCIgc3RFdnQ6c29mdHdhcmVBZ2VudD0iQWRvYmUgUGhvdG9zaG9wIDI2LjQgKE1hY2ludG9zaCkiIHN0RXZ0OmNoYW5nZWQ9Ii8iLz4gPHJkZjpsaSBzdEV2dDphY3Rpb249InNhdmVkIiBzdEV2dDppbnN0YW5jZUlEPSJ4bXAuaWlkOjA1ZTc4NjVhLTJiYzAtNGIyMi04NWMyLTliOGRiMjJjMzkxMSIgc3RFdnQ6d2hlbj0iMjAyNS0wOS0xN1QwOTo1ODo0MC0wNjowMCIgc3RFdnQ6c29mdHdhcmVBZ2VudD0iQWRvYmUgUGhvdG9zaG9wIDI2LjQgKE1hY2ludG9zaCkiIHN0RXZ0OmNoYW5nZWQ9Ii8iLz4gPC9yZGY6U2VxPiA8L3htcE1NOkhpc3Rvcnk+IDwvcmRmOkRlc2NyaXB0aW9uPiA8L3JkZjpSREY+IDwveDp4bXBtZXRhPiA8P3hwYWNrZXQgZW5kPSJyIj8+9ScfnAAAFblJREFUeJzt3Vt64kqyBlCxvxpKzX9Eey70QzXdLhtsAXmJ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") center / contain no-repeat;
+      transform-origin: 70% 75%;
+      animation: rat-chomp 0.8s ease-in-out infinite;
+    }
+
+    .rat-shadow {
+      position: absolute;
+      right: 12px;
+      bottom: 11px;
+      width: 60px;
+      height: 8px;
+      border-radius: 50%;
+      background: radial-gradient(closest-side, rgba(0, 0, 0, 0.16), transparent);
+      animation: rat-shadow 0.4s ease-in-out infinite;
+    }
+
+    .rat-bit {
+      position: absolute;
+      left: 149px;
+      bottom: 22px;
+      width: 4px;
+      height: 4px;
+      border-radius: 50%;
+      background: #f8c234;
+      opacity: 0;
+      animation: rat-bit 0.8s ease-out infinite;
+    }
+
+    .rat-nom {
+      position: absolute;
+      left: 118px;
+      top: 6px;
+      font: italic 700 13px/1 Arial, sans-serif;
+      color: #860011;
+      opacity: 0;
+      animation: rat-nom 1.6s ease-out infinite;
+    }
+
+    .rat-nom + .rat-nom {
+      left: 96px;
+      top: 14px;
+      animation-delay: -0.8s;
+    }
+
+    .rat-caption {
+      font-size: 0.9rem;
+      color: #333;
+    }
+
+    @keyframes rat-appear {
+      from { opacity: 0; transform: translateY(4px); }
+    }
+
+    @keyframes rat-ground {
+      to { transform: translateX(8px); }
+    }
+
+    /* Bitten at 90% (when it's under the rat's nose) */
+    @keyframes rat-crumb {
+      0%   { transform: translateX(0) scale(0.3); opacity: 0; }
+      8%   { transform: translateX(12.8px) scale(1); opacity: 1; }
+      86%  { transform: translateX(137.6px) scale(1); opacity: 1; }
+      92%  { transform: translateX(147.2px) scale(0.5) rotate(-20deg); opacity: 1; }
+      96%  { transform: translateX(153.6px) scale(0); opacity: 0; }
+      100% { transform: translateX(160px) scale(0); opacity: 0; }
+    }
+
+    @keyframes rat-bob {
+      0%, 100% { transform: translateY(0); }
+      50%      { transform: translateY(-2.5px); }
+    }
+
+    @keyframes rat-shadow {
+      0%, 100% { transform: scaleX(1); opacity: 1; }
+      50%      { transform: scaleX(0.9); opacity: 0.8; }
+    }
+
+    /* Bite at 50% of each 0.8s cycle, with a quick nibble while it's down */
+    @keyframes rat-chomp {
+      0%, 15%, 100% { transform: rotate(0deg); }
+      22%  { transform: rotate(3deg); }
+      35%  { transform: rotate(-18deg); }
+      45%  { transform: rotate(-14deg); }
+      52%  { transform: rotate(-18deg); }
+      60%  { transform: rotate(-15deg); }
+      80%  { transform: rotate(0deg); }
+    }
+
+    @keyframes rat-bit {
+      0%, 48% { transform: translate(0, 0) scale(0.6); opacity: 0; }
+      52%     { transform: translate(0, 0) scale(1); opacity: 1; }
+      90%     { transform: translate(var(--dx), var(--dy)) scale(0.5); opacity: 0; }
+      100%    { opacity: 0; }
+    }
+
+    @keyframes rat-nom {
+      0%, 20% { transform: translateY(4px) scale(0.6); opacity: 0; }
+      26%     { transform: translateY(0) scale(1.15); opacity: 1; }
+      32%     { transform: translateY(-1px) scale(1); opacity: 1; }
+      55%     { transform: translateY(-10px) scale(1); opacity: 0; }
+      100%    { opacity: 0; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .rat-loader, .rat-loader * {
+        animation: none !important;
+      }
+      .rat-crumb {
+        transform: translateX(calc(var(--i) * 30px + 8px));
+      }
+      .rat-bit, .rat-nom {
+        display: none;
+      }
+    }
+
+    .toast {
+      position: fixed;
+      right: 20px;
+      bottom: 20px;
+      z-index: 300;
+      max-width: 420px;
+      padding: 12px 16px;
+      background: #155724;
+      color: #ffffff;
+      border-radius: 6px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+      font-size: 0.85rem;
+      line-height: 1.4;
+    }
+
+    .toast.toast-error {
+      background: #721c24;
+    }
+
+  </style>
+
+</head>
+<body>
+
+  <!-- Demo only: explains the sample data, picks who's "signed in", resets saved changes -->
+  <div class="demo-banner" role="note">
+    <span class="demo-tag">Demo</span>
+    <span class="demo-text">Every grant, person and dollar amount here is made up. Changes are saved only in this browser.</span>
+    <span class="demo-controls">
+      <label class="demo-user">Signed in as <select id="demo-user"></select></label>
+      <button type="button" class="demo-reset" id="demo-reset">Reset demo</button>
+    </span>
+  </div>
+
+  <!-- Shared icons, used as <svg><use href="#icon-alert"/></svg> -->
+  <svg width="0" height="0" style="position: absolute" aria-hidden="true">
+    <symbol id="icon-alert" viewBox="0 0 24 24">
+      <path d="M12 2.5 1.5 21h21L12 2.5z" fill="currentColor"/>
+      <path d="M12 9.5v5" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/>
+      <circle cx="12" cy="17.6" r="1.3" fill="#fff"/>
+    </symbol>
+    <symbol id="icon-folder" viewBox="0 0 24 24">
+      <path d="M3 6.5A1.5 1.5 0 0 1 4.5 5h4.2l2 2.2h8.8A1.5 1.5 0 0 1 21 8.7v9.8a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 18.5z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
+    </symbol>
+    <symbol id="icon-cheese" viewBox="0 0 16 13">
+      <path d="M1 6.2 L11.2 1.2 L15 6.2 Z" fill="#ffe07a" stroke="#d9960f" stroke-width="0.7" stroke-linejoin="round"/>
+      <path d="M1 6.2 H15 V11.8 H1 Z" fill="#f8c234" stroke="#d9960f" stroke-width="0.7" stroke-linejoin="round"/>
+      <circle cx="4.6" cy="9.2" r="1.3" fill="#e3a21a"/>
+      <circle cx="9.6" cy="8.4" r="0.9" fill="#e3a21a"/>
+      <circle cx="12.4" cy="10.2" r="0.8" fill="#e3a21a"/>
+      <ellipse cx="9" cy="4.3" rx="1" ry="0.5" fill="#f3bf3a"/>
+    </symbol>
+  </svg>
+
+  <div class="report-container" data-state="empty">
+
+
+    <!-- Header + menu bar stick to the top together so the menus stay reachable while scrolling -->
+    <div class="sticky-header">
+    <div class="header-block">
+      <div class="suu-branding">
+        <img src="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAASABIAAD/4QCARXhpZgAATU0AKgAAAAgABAEaAAUAAAABAAAAPgEbAAUAAAABAAAARgEoAAMAAAABAAIAAIdpAAQAAAABAAAATgAAAAAAAABIAAAAAQAAAEgAAAABAAOgAQADAAAAAQABAACgAgAEAAAAAQAAAsegAwAEAAAAAQAAAMgAAAAA/+0AOFBob3Rvc2hvcCAzLjAAOEJJTQQEAAAAAAAAOEJJTQQlAAAAAAAQ1B2M2Y8AsgTpgAmY7PhCfv/CABEIAMgCxwMBIgACEQEDEQH/xAAfAAABBQEBAQEBAQAAAAAAAAADAgQBBQAGBwgJCgv/xADDEAABAwMCBAMEBgQHBgQIBnMBAgADEQQSIQUxEyIQBkFRMhRhcSMHgSCRQhWhUjOxJGIwFsFy0UOSNIII4VNAJWMXNfCTc6JQRLKD8SZUNmSUdMJg0oSjGHDiJ0U3ZbNVdaSVw4Xy00Z2gONHVma0CQoZGigpKjg5OkhJSldYWVpnaGlqd3h5eoaHiImKkJaXmJmaoKWmp6ipqrC1tre4ubrAxMXGx8jJytDU1dbX2Nna4OTl5ufo6erz9PX29/j5+v/EAB8BAAMBAQEBAQEBAQEAAAAAAAECAAMEBQYHCAkKC//EAMMRAAICAQMDAwIDBQIFAgQEhwEAAhEDEBIhBCAxQRMFMCIyURRABjMjYUIVcVI0gVAkkaFDsRYHYjVT8NElYMFE4XLxF4JjNnAmRVSSJ6LSCAkKGBkaKCkqNzg5OkZHSElKVVZXWFlaZGVmZ2hpanN0dXZ3eHl6gIOEhYaHiImKkJOUlZaXmJmaoKOkpaanqKmqsLKztLW2t7i5usDCw8TFxsfIycrQ09TV1tfY2drg4uPk5ebn6Onq8vP09fb3+Pn6/9sAQwACAgICAgIDAgIDBQMDAwUGBQUFBQYIBgYGBgYICggICAgICAoKCgoKCgoKDAwMDAwMDg4ODg4PDw8PDw8PDw8P/9sAQwECAgIEBAQHBAQHEAsJCxAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQ/9oADAMBAAIRAxEAAAH7+21bbVttW21bbVttW21bbVttW21bbVttW21bbVttW21bbVttW21bbVttW21bbVttW21bbVttW21bbVttW21bbVttW21bbVttW21bbVttW21bbVttW21bbVttW21bbVttW21bbVttW21bbVttW21bbVttW21bbVttW21bbVttW21bbVttW21bbVttW21bbVttW21bbVttW21bbVttW21bbVttW21bbVttW21bbVttW21bbVttW21bbVttW21bZtE/LfLvz55X6d9lc35h2WHsdN1Xzr5Rn6P6YdN+VPu/V819w0V74l6P592++RfFvK/TP0j35uevzfY/Z/Hn2H6PwGYvuK38aN8xeXeX+l/dy/hH1yT6souV+d9/G+st+bm4ftv0j3xl2fR4H2htvV/MWnKP/lPj+q+nd8NMeH7T7z7b4u+0fQ+F0TzfV83W0/5yfUEPsjUPzLH2y5+NfPYfp/RcR4jX1Y08M82r7L5vzynr0dz+Vn3ZX1Hyz/8AOuv0poKX4ur9EvN+/wDyGr9OvSPlH6wjxbL85vpOH2GX8zP0zrz30H8K/wBg66Pr/wAx/wBOK22jttW21bbVttW21bbVttW21bbVHxz9WfmR5f6bY/f/AM+fYgaJner+YJ+efohOXpflT6B0/MfNf0X+jCVb6r+YvNPzy/Q788fA/c995/Bn3mu/sk7fQ/guSrVHxf8AaPxfwfcuPsb46+x5U8Z2vF9fy35t7b5H+sPt33rwb3r6n+Yttun55Mzq+ROc6Tm/B/b/ALdnb3vxDN3FNX54MPtP5pl+1vzf+rvHI/a3hBvEq7R16HzFWXmrvzqvqD3nyL12P5Ufqv8AlR+q8KD8gv18/Oui3f2h8XV+hP42/sj+V1fSv2T5539flN6N5/8AXMPMvuv4o+14/lT39FZQq/02/NH9Lo7bR22rbattq22rbattq22rbattq8t/Pn9Ffzp8H9z+ifs78tPtXbxveMhXsfks7avDPlr9APGfL/Svftt6n5r5r+eP6Hfnj4P7nvvP4M+8139l230H4LttW+L/ALQ+L+D7lz9j/HH2PLuL7Ti+v5b829t8j/WH29714L719T/MW23T89ttXyLzfSc34P7f9vbb3vxDMnur5EX9caAAPtH486v6Y0IbudH5BvPqLQido/Pf0JtTLxb3bVSeYe1ahfIv1/q+QPrV1q+e/oJWr5r+lNq8J7b0DV4N7ztW21bbVttW21bbVttW21bbVttW21B/Nv8ASrzji+y/O7X/AD/zf9D939D/AB9HR4H6e3X5Ze5en+a/bu4bt/U/NlbZsPNfzx/Q788fB/c995/Bn3mu/su2+g/Bdtq3xf8AaHxfwfcufsf44+x5dxfacX1/Lfm3tvkf6w+3vevBfevqf5i226fnttq+Reb6Tm/B/b/t7be9+IbbV4563+Wn6dw866z88f0TrxvfP3R19jMrb4Rr679S/MD9Pq4d/wDM3ZV6d0Px37pXuW2jttW21bbVttW21bbVttW21bbVttW21bbVttW21bbVttW21ZKtVJ8wfXSef3PzBp/1L8P8r9S+JN6L515n6Mb63+Qtr5v6rK8k9b+o/mnzX88f0O/PHxP2ffefwZ95rv7LtvoPwXbat8X/AGh8X8H3Ln7H+OPseXcX2nF9fy35t7b5H+sPt73rwX3r6n+Yttun57bavkXm+k5vwf2/7e23vfiG21flZ+nf5XfX8Pmr9P8A88v0Nr486/kOvr6S/Lb7u+Cqv/0G+D/W6j5z+jOyr4Z/QXwr3WvcttHbattq22rbattq22rbattq22rbattq22rbattq22rbattqB84fQ/5ceZ+jfqrNZZ+l+d6JxVHzV9MJx9T8qo9y8N+X/pn6K+zvhb7p978O81/PH9Dvzx4ft995/Bn3mu/su2+g/Bdtq3xf9ofF3B9y6+x/jj7Hk3F9pxfX8v8Am3tvkf6w+3vevBfevqf5i226fnttq+Reb6PnfB/b/t3be9+IbbVwnlf0fqYvtq4930urkS9TqreK9H1ce86TVw17eattq22rbattq22rbattq22rbattq22rbattq22rbattq22rbamH5bfqT+W3i/sf3r7H8K/dHd8SrbdnyW2TXzJ8ifR/zl8z/R/0r9g+cej+5+J8L+cH6o/mL536DU/b3xD9Ccv1H2pkq+l/nPbat8JfbH5oeV+n/S/1b5X6p2fJbmulT0eF+VO6Xmvj/wCs/sj6Q+Fvuf6P+elbbu+M2zIH40tvCvs7wv2/2nbe9+H7bV82/Q/5b/p3Dw76J/MD9P6+Nfsf8Qv01o30L+Zf6aV82+y/mz+oNeRet/mT9gU57bwm1rlfROO+qKs/jD7H/Lyvpr6o+RHVfT3x48f12/0r556HXzb9Bfl5+p1fF29k+P6+weZ95+ba+p/nfgfIa/SN1Ex22rbattq22rbattq22rbamH5a/qv4X536D8O/YPh/mPkfqv6or/MrovT/ADn9EfFPjLocvQ436i7n2/TiytvW/LN8wfT6MfV/Kk32H8vfOf0N9d+6flR1fb8Z+llL8A8dr53qyb37HTssVbe1+ObbV87fF/6r+AeT+p/FP2h8uch5n6N+qyvzNu/U/Nv0C+L/ABv2Pn9/nf0Eqrr0vzjbbr+X22r8rP06/Lj3OHlv6f8Awn92V+YDyO5hxf6X/mh+l8fys/VP8rP1Tr8xOt9R+T4fp54J9V/Kkflv7Y+Rvpqvof8AHP8AYz8yK4P9U/kD2GvcfiD23ia+d/1N/JT9a6/Kz9U/ys/VOuB+Jftn4mr9GAm0fxm/U388P1ahO2jttW21bbVttW21bbVttW21aJ1Jq7bBvMxeo7L0+a6Sdr56VbHLbattqTC9XJc36jsvR8v7a6xRKttOHbattqyVak8v1WXXy9PqWz9GhvFbXzdtjnttW21VXGekakq2rn7F/q57odq5zo9qZ1XQ6tWWeri33TakUHRamtT0GoXnHpmqrtNq5vpNqb1V7q22rm+k2rbattq22rbattq22rbattq22rbattq22rbattq22rbattq22rbattq22rbattq22rbattq22rbattq22rbattq22rbattq22rbattq22rbattq22rbattq22rbattq22rbattq22rbattq22rbattq22rbattq22rbattq22rbattq22rbattq22rbattq22rbattq22rbattq22rbattq22rbattq22rbattq22rbattq22rbattq22rbattq//9oACAEBAAEFAv8Ap2/cN82ra3cfWPtMZP1mho+syAu3+sPYZnZb1tW497zc7Db3/STYX/STYX/STYX/AEk2Fp8Q7GtXa4uYLSH+kmwv+kmwv+kmwtPiLY1qu9wsrAf0k2F/0k2F/wBJNhf9JNhf9I9h7yzRW8X9JNhf9JNhf9JNhf8ASTYfubp4j2PZXt/jPwvukvbcPGXhjaptr8RbHvXa/wBz27aorK/stxg3Ddts2pNpeWt/b3niXw/t9x/TLwo4vFnhm4lWtMaLDf8AZN1lmnitodv3zZ91USAP6ZeFH/TLwowQRe+I9g26ePxZ4YmUlaVpaPFnhiSV2O/7Juk3+pZZY4Y/EPju5ulAS3Etl4G8QXg/2Wu4U3LwXvu3JfB+E/EW8DdH4v8ADd54gO5eBtz2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" alt="Southern Utah University Logo">
+      </div>
+
+      <div class="report-title">
+        <h1>Grant Budget Availability Report</h1>
+      </div>
+
+      <!-- Dashboard rows 2-4: grant title, PI name, risk level -->
+      <div class="report-meta-container">
+        <div class="meta-row">
+          <label>Grant Title</label>
+          <span id="grant-title"></span>
+        </div>
+        <div class="meta-row">
+          <label>PI Name</label>
+          <span id="pi-name"></span>
+        </div>
+        <div class="meta-row">
+          <label>Risk Level</label>
+          <span id="risk-level" class="risk-badge"></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Equivalents of the spreadsheet's "BAR Tools" and "Project Details" menus -->
+    <ul class="NavBar">
+      <li class="nav-dropdown">
+        <button type="button" class="nav-toggle">BAR Tools &#9662;</button>
+        <ul class="nav-menu">
+          <li><button type="button" data-action="load">Load Grant Project</button></li>
+          <li><button type="button" data-needs-grant data-action="save">Save Changes</button></li>
+          <li><button type="button" data-needs-grant data-action="review">Mark Project as Reviewed</button></li>
+        </ul>
+      </li>
+      <li class="nav-dropdown">
+        <button type="button" class="nav-toggle">BAR Reports &#9662;</button>
+        <ul class="nav-menu">
+          <li><button type="button" data-needs-grant data-action="report-swb">Salaries Wages &amp; Benefits</button></li>
+          <li><button type="button" data-needs-grant data-action="report-gem">Grant Expenses</button></li>
+          <li><button type="button" data-needs-grant data-action="report-lbd">Labor Distributions</button></li>
+        </ul>
+      </li>
+    </ul>
+    </div>
+
+
+
+    <!-- Shown until a grant project is loaded (e.g. on first visit) -->
+    <div class="empty-state">
+      <svg class="empty-icon" aria-hidden="true"><use href="#icon-folder"/></svg>
+      <h2>No grant project loaded</h2>
+      <p>Choose a grant from <strong>BAR Tools &rarr; Load Grant Project</strong> to see its budget, status indicators, and notes.</p>
+      <button type="button" class="btn-primary" data-action="load">Load Grant Project</button>
+    </div>
+
+    <!-- Everything for the loaded grant; hidden while data-state="empty" -->
+    <div class="grant-content">
+    <div class="parameters-grid">
+      <div class="param-item"><label>Grant Code</label><span id="grant-code"></span></div>
+      <div class="param-item"><label>Index</label><span id="grant-index"></span></div>
+      <div class="param-item"><label>Start Date</label><span id="start-date"></span></div>
+      <div class="param-item"><label>PI T-Number</label><span id="pi-tnumber"></span></div>
+      <div class="param-item"><label>Fund</label><span id="fund"></span></div>
+      <div class="param-item"><label>End Date</label><span id="end-date"></span></div>
+      <div class="param-item"><label>Department</label><span id="department"></span></div>
+      <div class="param-item"><label>Organization</label><span id="organization"></span></div>
+      <div class="param-item">
+        <label>Completion Rate</label>
+        <!-- Bar fill is capped at 100% -->
+        <span class="progress-field">
+          <span class="progress-bar"><span class="progress-fill" id="completion-fill"></span></span>
+          <span class="progress-text" id="completion-rate"></span>
+        </span>
+      </div>
+    </div>
+
+
+    <h3 class="section-title">Accounts Overview</h3>
+    <table id="accounts-table">
+      <thead>
+        <tr>
+          <th>Accounts</th>
+          <th>Budget</th>
+          <th>Activity</th>
+          <th id="encumbrance-header">Encumbrances</th>
+          <th>Available Balance</th>
+          <th>Burn Rate</th>
+        </tr>
+      </thead>
+      <tbody id="accounts-body"></tbody>
+    </table>
+    <p class="table-footnote" id="encumbrance-note"></p>
+
+
+    <div class="lower-split">
+
+
+      <div>
+        <h3 class="section-title">Account Summary Ledger</h3>
+        <table id="ledger-table">
+          <colgroup>
+            <col>
+            <col class="col-code">
+            <col class="col-amount">
+          </colgroup>
+          <thead>
+            <tr>
+              <th>Details</th>
+              <th>Code</th>
+              <th>Amount</th>
+            </tr>
+          </thead>
+          <tbody id="ledger-body"></tbody>
+        </table>
+      </div>
+
+
+      <div class="side-column">
+        <h3 class="section-title">Status Indicators</h3>
+
+        <div class="status-grid">
+          <div class="status-box bg-blue">
+            <span class="status-label">Available Spending Balance</span>
+            <strong class="status-value" id="available-spending"></strong>
+          </div>
+
+          <div class="status-box bg-blue">
+            <span class="status-label">Possible Invoiceable Amount</span>
+            <strong class="status-value" id="invoiceable-amount"></strong>
+          </div>
+
+          <!-- Each status card: heading, status (the sheet's dropdown chip), and its explanation -->
+          <div class="status-box" id="status-burn">
+            <span class="status-label">Project Burn Rate</span>
+            <strong class="status-chip"></strong>
+            <p class="status-detail"></p>
+          </div>
+
+          <div class="status-box" id="status-end-date">
+            <span class="status-label">End Date Alerts</span>
+            <strong class="status-chip"></strong>
+            <p class="status-detail"></p>
+          </div>
+
+          <div class="status-box" id="status-compliance">
+            <span class="status-label">Financial Compliance</span>
+            <strong class="status-chip"></strong>
+            <p class="status-detail"></p>
+          </div>
+
+          <div class="status-box" id="status-admin">
+            <span class="status-label">Administrative Details</span>
+            <strong class="status-chip"></strong>
+            <p class="status-detail"></p>
+          </div>
+        </div>
+
+        <!-- All notes live in one cell (Data col L / Dashboard F47). Each non-blank line shows as one comment. -->
+        <div class="notes-container">
+          <h4 class="section-title">Project Notes</h4>
+          <ol class="comment-log" id="comment-log"></ol>
+          <form class="comment-add" id="comment-form">
+            <input type="text" id="new-comment" placeholder="Add a comment..." autocomplete="off">
+            <button type="submit" class="btn-primary">Add</button>
+          </form>
+          <details class="notes-raw">
+            <summary>Edit all notes as text</summary>
+            <textarea id="report-notes"></textarea>
+          </details>
+          <div class="notes-status" id="save-status">Notes are saved with BAR Tools &rarr; Save Changes</div>
+        </div>
+
+        <!-- Dashboard F75:H77 -->
+        <div class="reviewers-container">
+          <h4 class="section-title">Additional Reviewers</h4>
+          <div class="reviewer-row">
+            <label for="review-assistant-director">Assistant Director</label>
+            <select id="review-assistant-director">
+              <option value=""></option>
+              <option value="Requested">Requested</option>
+              <option value="Completed">Completed</option>
+            </select>
+          </div>
+          <div class="reviewer-row">
+            <label for="review-accountant">SPARC Accountant</label>
+            <select id="review-accountant">
+              <option value=""></option>
+              <option value="Requested">Requested</option>
+              <option value="Completed">Completed</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+    </div>
+    </div>
+
+    <p class="last-import" id="last-import"></p>
+
+  </div>
+
+
+  <!-- ====================================================================
+       DIALOGS (opened from the BAR Tools / BAR Reports menus)
+       ==================================================================== -->
+
+  <!-- BAR Tools > Load Grant Project (replaces ProjectPicker.html) -->
+  <dialog id="dlg-picker" class="report-dialog dialog-wide">
+    <h3 class="section-title">Select a Project</h3>
+    <div class="picker-filters">
+      <label>Grant Code<input type="text" id="filter-code" placeholder="e.g. F00000000"></label>
+      <label>Grant Title<input type="text" id="filter-title" placeholder="e.g. NSF PUI Project"></label>
+      <label>PI<input type="text" id="filter-pi" placeholder="e.g. Smith"></label>
+      <label>Department<input type="text" id="filter-dept" placeholder="e.g. Biology"></label>
+      <label>Risk Level
+        <select id="filter-risk">
+          <option value="">All</option>
+          <option value="High">High</option>
+          <option value="Moderate">Moderate</option>
+          <option value="Low">Low</option>
+        </select>
+      </label>
+      <label>Additional Review
+        <select id="filter-reviewer">
+          <option value="">-</option>
+          <option value="AssistantDirector">Assistant Director</option>
+          <option value="Accountant">Accountant</option>
+        </select>
+      </label>
+      <label>Manager<input type="text" id="filter-manager" placeholder="e.g. Banister Bacon"></label>
+      <label>Sort By
+        <select id="sort-by">
+          <option value="" hidden>Column header</option>
+          <option value="grantName">Grant Title (A&rarr;Z)</option>
+          <option value="piLastName">PI Last Name (A&rarr;Z)</option>
+          <option value="department">Department (A&rarr;Z)</option>
+          <option value="manager">Manager (A&rarr;Z)</option>
+          <option value="riskLevel">Risk Level (High &rarr; Low)</option>
+          <option value="daysSinceLastReview">Days Since Review (descending)</option>
+        </select>
+      </label>
+      <label class="checkbox-label"><input type="checkbox" id="filter-days90"> &ge; 90 days since review</label>
+    </div>
+    <div class="dialog-table-wrap">
+      <table id="picker-table">
+        <thead>
+          <tr>
+            <th data-sort="code">Code</th>
+            <th data-sort="grantName">Grant Name</th>
+            <th data-sort="piLastName">PI Name</th>
+            <th data-sort="department">Department</th>
+            <th data-sort="manager">Manager</th>
+            <th data-sort="riskLevel">Risk Level</th>
+            <th data-sort="daysSinceLastReview">Days Since Last Review</th>
+            <th data-sort="lastReviewer">Last Reviewer</th>
+          </tr>
+        </thead>
+        <tbody id="picker-body"></tbody>
+      </table>
+    </div>
+    <div class="dialog-actions">
+      <span class="dialog-info" id="picker-count"></span>
+      <button type="button" class="btn-secondary" id="picker-edit" disabled>Edit Assignments</button>
+      <button type="button" class="btn-secondary" id="picker-cancel">Cancel</button>
+      <button type="button" class="btn-primary" id="picker-load" disabled>Load Selected Grant</button>
+    </div>
+  </dialog>
+
+  <!-- Opened from the project picker for the selected row -->
+  <dialog id="dlg-assignments" class="report-dialog">
+    <h3 class="section-title" id="assign-title">Edit Assignments</h3>
+    <form class="assignment-form" id="assign-form">
+      <label>Manager<input type="text" id="assign-manager" list="manager-names" autocomplete="off"></label>
+      <label>Manager Email<input type="text" id="assign-manager-email" list="manager-emails" placeholder="name@example.com" autocomplete="off"></label>
+      <label>Recipient<input type="text" id="assign-recipient" list="recipient-names" autocomplete="off"></label>
+      <label>Recipient Email<input type="text" id="assign-recipient-email" list="recipient-emails" placeholder="name@example.com" autocomplete="off"></label>
+      <div class="cc-emails">
+        <span class="cc-label">CC Emails</span>
+        <div id="assign-cc"></div>
+        <button type="button" class="btn-small" id="assign-add-cc">+ Add CC Email</button>
+      </div>
+      <p class="form-error" id="assign-error"></p>
+      <div class="dialog-actions">
+        <button type="button" class="btn-secondary" id="assign-cancel">Cancel</button>
+        <button type="submit" class="btn-primary" id="assign-save">Save Assignments</button>
+      </div>
+    </form>
+    <datalist id="manager-names"></datalist>
+    <datalist id="manager-emails"></datalist>
+    <datalist id="recipient-names"></datalist>
+    <datalist id="recipient-emails"></datalist>
+    <datalist id="cc-email-options"></datalist>
+  </dialog>
+
+  <!-- BAR Reports > Salaries Wages & Benefits (replaces CSV2Viewer.html) -->
+  <dialog id="dlg-swb" class="report-dialog dialog-wide">
+    <h3 class="section-title">Salaries, Wages &amp; Benefits</h3>
+    <p class="dialog-info">Salaries, Wages, and Benefits paid in the last 30 days.</p>
+    <div class="dialog-table-wrap">
+      <table>
+        <thead>
+          <tr><th>T-Number</th><th>Type</th><th>Name</th><th>Title</th><th>Amount</th></tr>
+        </thead>
+        <tbody id="swb-body"></tbody>
+      </table>
+    </div>
+    <form method="dialog" class="dialog-actions"><button type="submit" class="btn-secondary" value="close">Close</button></form>
+  </dialog>
+
+  <!-- BAR Reports > Grant Expenses (replaces CSV3Viewer.html) -->
+  <dialog id="dlg-gem" class="report-dialog dialog-wide">
+    <h3 class="section-title">Grant Expenses</h3>
+    <p class="dialog-info">Expenses charged to the grant in the last 30 days.</p>
+    <div class="dialog-table-wrap">
+      <table>
+        <thead>
+          <tr><th>Date</th><th>Account Code</th><th>Account Name</th><th>Description</th><th>Amount</th><th>Reference</th></tr>
+        </thead>
+        <tbody id="gem-body"></tbody>
+      </table>
+    </div>
+    <form method="dialog" class="dialog-actions"><button type="submit" class="btn-secondary" value="close">Close</button></form>
+  </dialog>
+
+  <!-- BAR Reports > Labor Distributions (replaces CSV4Viewer.html) -->
+  <dialog id="dlg-lbd" class="report-dialog dialog-wide">
+    <h3 class="section-title">Labor Distributions</h3>
+    <div class="dialog-table-wrap">
+      <table>
+        <thead>
+          <tr><th>Name</th><th>Job Title</th><th>Account</th><th>Account Title</th><th>Percent</th><th>Details</th></tr>
+        </thead>
+        <tbody id="lbd-body"></tbody>
+      </table>
+    </div>
+    <form method="dialog" class="dialog-actions"><button type="submit" class="btn-secondary" value="close">Close</button></form>
+  </dialog>
+
+  <!-- Yes/No question (used instead of the browser's confirm()) -->
+  <dialog id="dlg-confirm" class="report-dialog">
+    <h3 class="section-title" id="confirm-title">Heads Up</h3>
+    <p class="confirm-message" id="confirm-message"></p>
+    <div class="dialog-actions">
+      <button type="button" class="btn-secondary" id="confirm-no">No</button>
+      <button type="button" class="btn-primary" id="confirm-yes">Yes</button>
+    </div>
+  </dialog>
+
+  <div class="loading-overlay" id="loading" hidden>
+    <div class="loading-box" id="loading-box"></div>
+  </div>
+
+  <!-- Loading animation, cloned by ratLoader() -->
+  <template id="tpl-rat-loader">
+    <div class="rat-loader" role="status">
+      <div class="rat-stage" aria-hidden="true">
+        <div class="rat-trail">
+          <div class="rat-ground"></div>
+          <svg class="rat-crumb" style="--i: 0" viewBox="0 0 16 13"><use href="#icon-cheese" transform="rotate(-4 8 6.5)"/></svg>
+          <svg class="rat-crumb" style="--i: 1" viewBox="0 0 16 13"><use href="#icon-cheese" transform="rotate(6 8 6.5)"/></svg>
+          <svg class="rat-crumb" style="--i: 2" viewBox="0 0 16 13"><use href="#icon-cheese" transform="rotate(-8 8 6.5)"/></svg>
+          <svg class="rat-crumb" style="--i: 3" viewBox="0 0 16 13"><use href="#icon-cheese" transform="rotate(3 8 6.5)"/></svg>
+          <svg class="rat-crumb" style="--i: 4" viewBox="0 0 16 13"><use href="#icon-cheese" transform="rotate(-2 8 6.5)"/></svg>
+        </div>
+        <div class="rat-shadow"></div>
+        <div class="rat-walk"><div class="rat"></div></div>
+        <span class="rat-bit" style="--dx: -9px; --dy: -12px"></span>
+        <span class="rat-bit" style="--dx: -15px; --dy: -3px"></span>
+        <span class="rat-bit" style="--dx: -4px; --dy: -16px"></span>
+        <span class="rat-nom">nom</span>
+        <span class="rat-nom">nom</span>
+      </div>
+      <div class="rat-caption"></div>
+    </div>
+  </template>
+
+  <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+
+  <!-- Demo only: the real budget math, sample data, and a stand-in for google.script.run -->
+  <script src="js/dash-compute.js"></script>
+  <script src="js/demo-data.js"></script>
+  <script src="js/demo-server.js"></script>
+
+  <script>
+    // ------------------------------------------------------------------------
+    // Server calls (functions in DashScripts.js / Code.js) as promises
+    // ------------------------------------------------------------------------
+    function callServer(fn, ...args) {
+      return new Promise((resolve, reject) => {
+        if (window.google && google.script && google.script.run) {
+          google.script.run.withSuccessHandler(resolve).withFailureHandler(reject)[fn](...args);
+        } else {
+          reject(new Error('The dashboard server is not available.'));
+        }
+      });
+    }
+
+    const state = {
+      grant: null,          // last result from dashGetGrant()
+      baseNotes: '',        // notes as last loaded/saved, so saves can merge others' comments
+      baseReviews: { assistantDirector: '', accountant: '' },
+      projects: [],         // picker rows from getProjectData()
+      shown: [],            // picker rows after filters/sort
+      sort: { key: 'grantName', dir: 1 },  // picker sort column (PICKER_SORTS key); dir -1 = reversed
+      selected: null,       // picker row the user clicked
+      saveBeforeSwitch: false
+    };
+
+    const $ = id => document.getElementById(id);
+    const reportContainer = document.querySelector('.report-container');
+    const notesField = $('report-notes');
+    const commentLog = $('comment-log');
+    const currency = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
+
+    function money(n) {
+      return typeof n === 'number' ? currency.format(n) : '';
+    }
+
+    function percent(n) {
+      return typeof n === 'number' ? (n * 100).toFixed(2) + '%' : '';
+    }
+
+    function errorText(err) {
+      return err && err.message ? err.message : String(err);
+    }
+
+    function setText(id, value) {
+      $(id).textContent = value ?? '';
+    }
+
+    function cell(text, className) {
+      const td = document.createElement('td');
+      td.textContent = text ?? '';
+      if (className) td.className = className;
+      return td;
+    }
+
+    function emptyRow(tbody, columns, message) {
+      const tr = document.createElement('tr');
+      const td = cell(message, 'empty-row');
+      td.colSpan = columns;
+      tr.appendChild(td);
+      tbody.replaceChildren(tr);
+    }
+
+    // A table's only row, showing the loading animation while its data loads
+    function loadingRow(tbody, columns, text) {
+      emptyRow(tbody, columns, '');
+      tbody.querySelector('td').appendChild(ratLoader(text));
+    }
+
+    // ------------------------------------------------------------------------
+    // Feedback: loading overlay, toast messages, Yes/No dialog
+    // ------------------------------------------------------------------------
+    function ratLoader(text) {
+      const loader = $('tpl-rat-loader').content.firstElementChild.cloneNode(true);
+      loader.querySelector('.rat-caption').textContent = text || 'Loading...';
+      return loader;
+    }
+
+    function showLoading(text) {
+      $('loading-box').replaceChildren(ratLoader(text));
+      $('loading').hidden = false;
+    }
+
+    function hideLoading() {
+      $('loading').hidden = true;
+    }
+
+    let toastTimer = null;
+    function toast(message, isError) {
+      const box = $('toast');
+      box.textContent = message;
+      box.classList.toggle('toast-error', !!isError);
+      box.hidden = false;
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => { box.hidden = true; }, isError ? 10000 : 6000);
+    }
+
+    // Resolves from the button clicks themselves: the dialog's "close" event can be
+    // delayed until the browser next paints the page (e.g. in a background tab)
+    function askYesNo(message) {
+      const dialog = $('dlg-confirm');
+      setText('confirm-message', message);
+      dialog.showModal();
+      return new Promise(resolve => {
+        const finish = answer => {
+          $('confirm-yes').removeEventListener('click', onYes);
+          $('confirm-no').removeEventListener('click', onNo);
+          dialog.removeEventListener('cancel', onNo);
+          if (dialog.open) dialog.close();
+          resolve(answer);
+        };
+        const onYes = () => finish(true);
+        const onNo = () => finish(false);
+        $('confirm-yes').addEventListener('click', onYes);
+        $('confirm-no').addEventListener('click', onNo);
+        dialog.addEventListener('cancel', onNo); // Escape key
+      });
+    }
+
+    // ------------------------------------------------------------------------
+    // Empty vs. loaded grant
+    // ------------------------------------------------------------------------
+    function setGrantLoaded(loaded) {
+      reportContainer.dataset.state = loaded ? 'loaded' : 'empty';
+      document.querySelectorAll('[data-needs-grant]').forEach(btn => {
+        btn.disabled = !loaded;
+        btn.title = loaded ? '' : 'Load a grant project first';
+      });
+    }
+
+    // ------------------------------------------------------------------------
+    // Render one grant (the object dashGetGrant() returns)
+    // ------------------------------------------------------------------------
+    const STATUS_COLORS = { 1: 'bg-green', 2: 'bg-yellow', 3: 'bg-red' };
+    const RISK_CLASSES = { High: 'risk-high', Moderate: 'risk-moderate', Low: 'risk-low' };
+
+    function renderGrant(g) {
+      setText('grant-title', g.title);
+      setText('pi-name', g.piName);
+      const risk = $('risk-level');
+      risk.textContent = g.risk || '-';
+      risk.className = 'risk-badge ' + (RISK_CLASSES[g.risk] || '');
+
+      setText('grant-code', g.code);
+      setText('grant-index', g.index);
+      setText('start-date', g.startText);
+      setText('pi-tnumber', g.piTNumber);
+      setText('fund', g.fund);
+      setText('end-date', g.endText);
+      setText('department', g.department);
+      setText('organization', g.organization);
+      setText('completion-rate', percent(g.completionRate));
+      const fill = typeof g.completionRate === 'number' ? Math.min(Math.max(g.completionRate, 0), 1) : 0;
+      $('completion-fill').style.setProperty('--pct', (fill * 100) + '%');
+
+      setText('encumbrance-header', g.encumbranceLabel);
+      const accountRows = g.accounts.concat([g.total]);
+      $('accounts-body').replaceChildren(...accountRows.map(accountRow));
+      // Same width for every Available Balance amount (Arial: digits and $ are 1ch,
+      // punctuation about 0.6ch) so the bars beside them line up
+      const amountWidth = Math.max(...accountRows.map(r =>
+        [...money(r.available)].reduce((w, c) => w + (/[0-9$]/.test(c) ? 1 : 0.6), 0)));
+      $('accounts-table').style.setProperty('--avail-amount-width', amountWidth + 'ch');
+      $('accounts-table').classList.toggle('has-negative', accountRows.some(r => r.available < 0));
+      setText('encumbrance-note', g.encumbranceNote);
+      $('encumbrance-note').hidden = !g.encumbranceNote;
+
+      if (g.ledger.length === 0) {
+        emptyRow($('ledger-body'), 3, 'No activity recorded for this grant.');
+      } else {
+        $('ledger-body').replaceChildren(...g.ledger.map(line => {
+          const tr = document.createElement('tr');
+          if (line.category !== 'revenue') tr.className = 'cat-' + line.category;
+          tr.append(cell(line.name, 'text-left'), cell(line.code), cell(money(line.amount)));
+          return tr;
+        }));
+      }
+
+      setText('available-spending', money(g.availableSpending));
+      setText('invoiceable-amount', money(g.invoiceable));
+      renderStatus('status-burn', g.statuses.burn);
+      renderStatus('status-end-date', g.statuses.endDate);
+      renderStatus('status-compliance', g.statuses.compliance);
+      renderStatus('status-admin', g.statuses.balance);
+
+      notesField.value = g.notes;
+      renderComments();
+      setReviews(g.reviews);
+      setText('last-import', g.lastImport);
+    }
+
+    function accountRow(r) {
+      const tr = document.createElement('tr');
+      if (r.key === 'total') tr.className = 'summary-total-row';
+      else if (r.key !== 'revenue') tr.className = 'cat-' + r.key;
+
+      // Available balance: bar (empty at zero or below) + alert icon when negative
+      const wrap = document.createElement('div');
+      wrap.className = 'avail-wrap';
+      const bar = document.createElement('span');
+      bar.className = 'avail-bar';
+      bar.style.setProperty('--pct', ((r.barFill || 0) * 100) + '%');
+      const slot = document.createElement('span');
+      slot.className = 'avail-slot';
+      if (r.available < 0) {
+        slot.innerHTML = '<svg class="icon-alert" role="img" aria-label="Over budget"><title>Over budget</title><use href="#icon-alert"/></svg>';
+      }
+      wrap.append(bar, slot);
+      const amount = document.createElement('span');
+      amount.className = 'avail-amount';
+      amount.textContent = money(r.available);
+      wrap.appendChild(amount);
+      const availCell = document.createElement('td');
+      availCell.appendChild(wrap);
+
+      const burn = r.burnRate === null ? '' : percent(r.burnRate) + (r.key === 'revenue' ? ' Drawn' : ' Burned');
+      tr.append(cell(r.label, 'text-left'), cell(money(r.budget)), cell(money(r.activity)),
+        cell(money(r.encumbrance)), availCell, cell(burn));
+      return tr;
+    }
+
+    function renderStatus(id, status) {
+      const box = $(id);
+      box.classList.remove('bg-green', 'bg-yellow', 'bg-red', 'bg-gray');
+      if (status.error) {
+        // The spreadsheet shows an error (e.g. #VALUE!) here, usually because the grant has no budget
+        box.classList.add('bg-gray');
+        box.querySelector('.status-chip').textContent = 'Not available';
+        box.querySelector('.status-detail').textContent = 'The spreadsheet shows ' + status.error + ' for this grant.';
+        return;
+      }
+      box.classList.add(STATUS_COLORS[status.level]);
+      box.querySelector('.status-chip').textContent = status.label;
+      box.querySelector('.status-detail').textContent = status.detail;
+    }
+
+    function setReviews(reviews) {
+      $('review-assistant-director').value = reviews.assistantDirector || '';
+      $('review-accountant').value = reviews.accountant || '';
+    }
+
+    function currentReviews() {
+      return {
+        assistantDirector: $('review-assistant-director').value,
+        accountant: $('review-accountant').value
+      };
+    }
+
+    function hasUnsavedChanges() {
+      if (!state.grant) return false;
+      const r = currentReviews();
+      return notesField.value !== state.baseNotes ||
+        r.assistantDirector !== (state.baseReviews.assistantDirector || '') ||
+        r.accountant !== (state.baseReviews.accountant || '');
+    }
+
+    // ------------------------------------------------------------------------
+    // Project Notes: the raw text (one spreadsheet cell) is the source of truth.
+    // Each non-blank line is one comment, so repeated line breaks never make empty comments.
+    // ------------------------------------------------------------------------
+    function renderComments() {
+      const lines = notesField.value.split(/\r?\n/)
+        .map(line => line.trim())
+        .filter(line => line !== '');
+
+      commentLog.replaceChildren();
+      if (lines.length === 0) {
+        const empty = document.createElement('li');
+        empty.className = 'comment-empty';
+        empty.textContent = 'No comments yet.';
+        commentLog.appendChild(empty);
+      }
+      lines.forEach(line => {
+        const item = document.createElement('li');
+        item.className = 'comment';
+        item.textContent = line;
+        commentLog.appendChild(item);
+      });
+      commentLog.scrollTop = commentLog.scrollHeight;
+    }
+
+    $('comment-form').addEventListener('submit', event => {
+      event.preventDefault();
+      const input = $('new-comment');
+      const text = input.value.trim();
+      if (!text) return;
+      const existing = notesField.value.replace(/\s+$/, '');
+      notesField.value = existing ? existing + '\n' + text : text;
+      input.value = '';
+      renderComments();
+    });
+
+    notesField.addEventListener('input', renderComments);
+
+    // ------------------------------------------------------------------------
+    // Load / save
+    // ------------------------------------------------------------------------
+    async function loadGrant(code) {
+      showLoading('Loading ' + code + '...');
+      try {
+        const grant = await callServer('dashGetGrant', code);
+        state.grant = grant;
+        state.baseNotes = grant.notes;
+        state.baseReviews = Object.assign({}, grant.reviews);
+        renderGrant(grant);
+        setGrantLoaded(true);
+        window.scrollTo(0, 0);
+      } catch (err) {
+        toast(errorText(err), true);
+      } finally {
+        hideLoading();
+      }
+    }
+
+    async function saveGrant(markReviewed) {
+      if (!state.grant) return false;
+      showLoading(markReviewed ? 'Marking as reviewed...' : 'Saving...');
+      try {
+        const result = await callServer(markReviewed ? 'dashMarkReviewed' : 'dashSaveChanges',
+          state.grant.code, notesField.value, state.baseNotes, currentReviews());
+        state.baseNotes = result.notes;
+        notesField.value = result.notes;
+        renderComments();
+        state.baseReviews = Object.assign({}, result.reviews);
+        setReviews(result.reviews);
+        toast(result.message + (result.mergedWithOthers
+          ? ' Someone else saved notes on this grant after you opened it, so their comments were kept and yours were added after them.'
+          : ''));
+        return true;
+      } catch (err) {
+        toast(errorText(err), true);
+        return false;
+      } finally {
+        hideLoading();
+      }
+    }
+
+    // Warn before leaving the page with unsaved notes or reviewer changes
+    window.addEventListener('beforeunload', event => {
+      if (hasUnsavedChanges()) {
+        event.preventDefault();
+        event.returnValue = '';
+      }
+    });
+
+    // ------------------------------------------------------------------------
+    // Project picker (same filters, sorting and columns as ProjectPicker.html,
+    // plus clickable column headers for sorting)
+    // ------------------------------------------------------------------------
+    async function openPicker() {
+      state.saveBeforeSwitch = false;
+      if (hasUnsavedChanges()) {
+        const proceed = await askYesNo("You've made changes to this project. Selecting 'Yes' will save your changes, but the project will NOT be marked as officially reviewed.\n\nDo you want to proceed?");
+        if (!proceed) return;
+        state.saveBeforeSwitch = true;
+      }
+
+      state.selected = null;
+      $('picker-load').disabled = true;
+      $('picker-edit').disabled = true;
+      loadingRow($('picker-body'), 8, 'Loading projects...');
+      setText('picker-count', '');
+      $('dlg-picker').showModal();
+
+      try {
+        state.projects = await callServer('getProjectData');
+        buildAssignmentAutofill();
+        applyFiltersAndSort();
+      } catch (err) {
+        emptyRow($('picker-body'), 8, errorText(err));
+      }
+    }
+
+    function applyFiltersAndSort() {
+      const value = id => $(id).value.trim().toLowerCase();
+      const code = value('filter-code');
+      const title = value('filter-title');
+      const pi = value('filter-pi');
+      const dept = value('filter-dept');
+      const manager = value('filter-manager');
+      const risk = $('filter-risk').value;
+      const reviewer = $('filter-reviewer').value;
+      const days90 = $('filter-days90').checked;
+
+      const rows = state.projects.filter(p => {
+        if (pi && !p.piName.toLowerCase().includes(pi)) return false;
+        if (dept && !p.department.toLowerCase().includes(dept)) return false;
+        if (risk && p.riskLevel !== risk) return false;
+        if (days90 && p.daysSinceLastReview < 90) return false;
+        if (reviewer === 'AssistantDirector' && p.assistantdirectorReview !== 'Requested') return false;
+        if (reviewer === 'Accountant' && p.accountantReview !== 'Requested') return false;
+        if (code && !p.code.toLowerCase().includes(code)) return false;
+        if (title && !p.grantName.toLowerCase().includes(title)) return false;
+        const managerValue = (p.manager || '').trim().toLowerCase() || 'none';
+        if (manager && !managerValue.includes(manager)) return false;
+        return true;
+      });
+
+      const { key, dir } = state.sort;
+      const compare = PICKER_SORTS[key].compare;
+      rows.sort((a, b) => dir * compare(a, b));
+
+      // Show the matching Sort By option, or "Column header" for orders it doesn't list
+      const firstDir = PICKER_SORTS[key].firstDir || 1;
+      const listed = $('sort-by').querySelector(`option[value="${key}"]`);
+      $('sort-by').value = listed && dir === firstDir ? key : '';
+      document.querySelectorAll('#picker-table th[data-sort]').forEach(th => {
+        if (th.dataset.sort === key) th.setAttribute('aria-sort', dir === 1 ? 'ascending' : 'descending');
+        else th.removeAttribute('aria-sort');
+      });
+
+      state.shown = rows;
+      renderPickerRows();
+    }
+
+    // Picker sort orders by column. A header's first click uses firstDir (default 1),
+    // which is also the order its Sort By option gives; the next click reverses it.
+    const byText = field => (a, b) => (a[field] || '').localeCompare(b[field] || '');
+    const RISK_ORDER = { High: 1, Moderate: 2, Low: 3 };
+    // Never reviewed (N/A) counts as the longest wait
+    const reviewAge = p => p.daysSinceLastReview === 'N/A' ? Infinity : p.daysSinceLastReview;
+    const PICKER_SORTS = {
+      code: { compare: byText('code') },
+      grantName: { compare: byText('grantName') },
+      piLastName: { compare: byText('piName') },
+      department: { compare: byText('department') },
+      manager: {
+        // Unassigned projects go last
+        compare: (a, b) => {
+          const aVal = (a.manager || '').trim();
+          const bVal = (b.manager || '').trim();
+          if (!aVal || !bVal) return (aVal ? 0 : 1) - (bVal ? 0 : 1);
+          return aVal.localeCompare(bVal);
+        }
+      },
+      riskLevel: { compare: (a, b) => (RISK_ORDER[a.riskLevel] || 99) - (RISK_ORDER[b.riskLevel] || 99) },
+      daysSinceLastReview: {
+        compare: (a, b) => reviewAge(a) === reviewAge(b) ? 0 : reviewAge(a) - reviewAge(b),
+        firstDir: -1
+      },
+      lastReviewer: { compare: byText('lastReviewer') }
+    };
+
+    function setPickerSort(key, dir) {
+      state.sort = { key, dir };
+      applyFiltersAndSort();
+    }
+
+    function renderPickerRows() {
+      const tbody = $('picker-body');
+      state.selected = null;
+      $('picker-load').disabled = true;
+      $('picker-edit').disabled = true;
+      setText('picker-count', 'Showing ' + state.shown.length + ' Projects');
+
+      if (state.shown.length === 0) {
+        emptyRow(tbody, 8, 'No projects match these filters.');
+        return;
+      }
+      tbody.replaceChildren(...state.shown.map(p => {
+        const tr = document.createElement('tr');
+        const hasManager = (p.manager || '').trim() !== '';
+        tr.append(
+          cell(p.code, 'cell-left'), cell(p.grantName, 'cell-left'), cell(p.piName, 'cell-left'),
+          cell(p.department, 'cell-left'), cell(hasManager ? p.manager : 'None', 'cell-left' + (hasManager ? '' : ' none-text')),
+          cell(p.riskLevel, 'cell-left ' + (RISK_CLASSES[p.riskLevel] || '')), cell(p.daysSinceLastReview),
+          cell(p.lastReviewer, 'cell-left'));
+        tr.addEventListener('click', () => {
+          tbody.querySelectorAll('tr.selected').forEach(row => row.classList.remove('selected'));
+          tr.classList.add('selected');
+          state.selected = p;
+          $('picker-load').disabled = false;
+          $('picker-edit').disabled = false;
+        });
+        tr.addEventListener('dblclick', () => $('picker-load').click());
+        return tr;
+      }));
+    }
+
+    ['filter-code', 'filter-title', 'filter-pi', 'filter-dept', 'filter-risk', 'filter-reviewer',
+      'filter-manager', 'filter-days90'].forEach(id => $(id).addEventListener('input', applyFiltersAndSort));
+
+    $('sort-by').addEventListener('input', () => {
+      const key = $('sort-by').value;
+      if (!PICKER_SORTS[key]) return;  // the hidden "Column header" option
+      setPickerSort(key, PICKER_SORTS[key].firstDir || 1);
+    });
+
+    document.querySelectorAll('#picker-table th[data-sort]').forEach(th => th.addEventListener('click', () => {
+      const key = th.dataset.sort;
+      setPickerSort(key, state.sort.key === key ? -state.sort.dir : PICKER_SORTS[key].firstDir || 1);
+    }));
+
+    $('picker-cancel').addEventListener('click', () => $('dlg-picker').close());
+
+    $('picker-load').addEventListener('click', async () => {
+      if (!state.selected) return;
+      const code = state.selected.code;
+      $('dlg-picker').close();
+      // Like processSelection(): keep the current grant's changes before switching
+      if (state.saveBeforeSwitch && hasUnsavedChanges()) {
+        const saved = await saveGrant(false);
+        if (!saved) return;
+      }
+      await loadGrant(code);
+    });
+
+    // ------------------------------------------------------------------------
+    // Edit Assignments (same fields and autofill as ProjectPicker.html)
+    // ------------------------------------------------------------------------
+    const normalizeKey = value => (value || '').toString().trim().toLowerCase();
+    let autofill = { managerEmailsByName: new Map(), recipientEmailsByName: new Map() };
+
+    function fillDatalist(id, options) {
+      $(id).replaceChildren(...options.map(value => {
+        const option = document.createElement('option');
+        option.value = value;
+        return option;
+      }));
+    }
+
+    function buildAssignmentAutofill() {
+      const managerNames = new Map();
+      const recipientNames = new Map();
+      const managerEmailsByName = new Map();
+      const recipientEmailsByName = new Map();
+      const allEmails = new Set();
+      const remember = (names, emailsByName, name, email) => {
+        const key = normalizeKey(name);
+        if (!key) return;
+        if (!names.has(key)) names.set(key, name.trim());
+        if (!emailsByName.has(key)) emailsByName.set(key, new Set());
+        if (email) emailsByName.get(key).add(email.trim());
+      };
+
+      state.projects.forEach(p => {
+        remember(managerNames, managerEmailsByName, p.manager || '', p.managerEmail || '');
+        remember(recipientNames, recipientEmailsByName, p.recipient || '', p.recipientEmail || '');
+        [p.managerEmail, p.recipientEmail].concat((p.ccEmails || '').split(','))
+          .map(e => (e || '').trim()).filter(e => e).forEach(e => allEmails.add(e.toLowerCase()));
+      });
+
+      autofill = { managerEmailsByName, recipientEmailsByName };
+      const sorted = values => Array.from(values).sort((a, b) => a.localeCompare(b));
+      fillDatalist('manager-names', sorted(managerNames.values()));
+      fillDatalist('recipient-names', sorted(recipientNames.values()));
+      fillDatalist('cc-email-options', sorted(allEmails));
+    }
+
+    function updateEmailAutofill(role) {
+      const nameInput = $(role === 'manager' ? 'assign-manager' : 'assign-recipient');
+      const emailInput = $(role === 'manager' ? 'assign-manager-email' : 'assign-recipient-email');
+      const map = role === 'manager' ? autofill.managerEmailsByName : autofill.recipientEmailsByName;
+      const key = normalizeKey(nameInput.value);
+      const emails = key && map.has(key) ? Array.from(map.get(key)).sort((a, b) => a.localeCompare(b)) : [];
+      fillDatalist(role === 'manager' ? 'manager-emails' : 'recipient-emails', emails);
+      if (!emailInput.value.trim() && emails.length === 1) emailInput.value = emails[0];
+    }
+
+    function addCcRow(email) {
+      const row = document.createElement('div');
+      row.className = 'email-row';
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.className = 'cc-email-input';
+      input.placeholder = 'name@example.com';
+      input.value = email || '';
+      input.setAttribute('list', 'cc-email-options');
+      const remove = document.createElement('button');
+      remove.type = 'button';
+      remove.className = 'btn-small';
+      remove.textContent = '×';
+      remove.setAttribute('aria-label', 'Remove email');
+      remove.addEventListener('click', () => {
+        if ($('assign-cc').querySelectorAll('.email-row').length > 1) row.remove();
+        else input.value = '';
+      });
+      row.append(input, remove);
+      $('assign-cc').appendChild(row);
+    }
+
+    $('picker-edit').addEventListener('click', () => {
+      const p = state.selected;
+      if (!p) return;
+      setText('assign-title', 'Edit Assignments: ' + p.code);
+      setText('assign-error', '');
+      $('assign-manager').value = p.manager || '';
+      $('assign-manager-email').value = p.managerEmail || '';
+      $('assign-recipient').value = p.recipient || '';
+      $('assign-recipient-email').value = p.recipientEmail || '';
+      $('assign-cc').replaceChildren();
+      const cc = (p.ccEmails || '').split(',').map(e => e.trim()).filter(e => e);
+      (cc.length ? cc : ['']).forEach(addCcRow);
+      updateEmailAutofill('manager');
+      updateEmailAutofill('recipient');
+      $('dlg-assignments').showModal();
+    });
+
+    $('assign-add-cc').addEventListener('click', () => addCcRow(''));
+    $('assign-cancel').addEventListener('click', () => $('dlg-assignments').close());
+    $('assign-manager').addEventListener('input', () => updateEmailAutofill('manager'));
+    $('assign-recipient').addEventListener('input', () => updateEmailAutofill('recipient'));
+
+    $('assign-form').addEventListener('submit', async event => {
+      event.preventDefault();
+      const p = state.selected;
+      if (!p) return;
+      const updated = {
+        manager: $('assign-manager').value.trim(),
+        managerEmail: $('assign-manager-email').value.trim(),
+        recipient: $('assign-recipient').value.trim(),
+        recipientEmail: $('assign-recipient-email').value.trim(),
+        ccEmails: Array.from(document.querySelectorAll('.cc-email-input'))
+          .map(input => input.value.trim()).filter(e => e).join(', ')
+      };
+      $('assign-save').disabled = true;
+      setText('assign-error', '');
+      try {
+        await callServer('updateAssignmentsByCode', p.code, updated);
+        Object.assign(p, updated);
+        buildAssignmentAutofill();
+        applyFiltersAndSort();
+        $('dlg-assignments').close();
+      } catch (err) {
+        setText('assign-error', errorText(err));
+      } finally {
+        $('assign-save').disabled = false;
+      }
+    });
+
+    // ------------------------------------------------------------------------
+    // BAR Reports (same rows and formatting as the CSV2/3/4 viewers)
+    // ------------------------------------------------------------------------
+    function toNumber(value) {
+      if (typeof value === 'number') return value;
+      const n = Number(String(value ?? '').replace(/[^0-9.-]/g, ''));
+      return Number.isFinite(n) ? n : null;
+    }
+
+    function formatAmount(value) {
+      const n = toNumber(value);
+      return n === null ? String(value ?? '') : currency.format(n);
+    }
+
+    function salaryClass(type) {
+      const t = String(type ?? '').trim().toLowerCase();
+      if (t === 'salaries' || t === 'wages') return 'cat-salaries';
+      if (t === 'benefits' || t === 'accrued vacation') return 'cat-fringe';
+      return '';
+    }
+
+    function expenseClass(accountCode) {
+      const n = toNumber(accountCode);
+      if (n !== null && n >= 7000 && n < 7500) return 'cat-expense';
+      if (n !== null && n >= 7500 && n < 7600) return 'cat-travel';
+      return 'cat-other';
+    }
+
+    function formatLaborPercent(value) {
+      const n = toNumber(value);
+      if (n === null) return String(value ?? '');
+      return Math.round(n <= 1 ? n * 100 : n) + '%';
+    }
+
+    const REPORTS = {
+      swb: {
+        fn: 'dashGetSalaryRows', args: g => [g.code], columns: 5,
+        empty: 'No Salaries, Wages or Benefits paid in the last 30 days.',
+        row: r => [salaryClass(r.type), [r.tNumber, r.type, r.name, r.title, formatAmount(r.amount)]]
+      },
+      gem: {
+        fn: 'dashGetExpenseRows', args: g => [g.code], columns: 6,
+        empty: 'No expenses charged to the grant in the last 30 days.',
+        row: r => [expenseClass(r.accountCode), [r.date, r.accountCode, r.accountName, r.description, formatAmount(r.amount), r.reference]]
+      },
+      lbd: {
+        fn: 'dashGetLaborRows', args: g => [g.fund, g.organization], columns: 6,
+        empty: 'No active labor distributions.',
+        row: r => ['', [r.name, r.jobTitle, r.account, r.accountTitle, formatLaborPercent(r.percent), r.details]]
+      }
+    };
+
+    async function openReport(kind) {
+      const report = REPORTS[kind];
+      const tbody = $(kind + '-body');
+      loadingRow(tbody, report.columns, 'Loading...');
+      $('dlg-' + kind).showModal();
+      try {
+        const rows = await callServer(report.fn, ...report.args(state.grant));
+        if (rows.length === 0) {
+          emptyRow(tbody, report.columns, report.empty);
+          return;
+        }
+        tbody.replaceChildren(...rows.map(r => {
+          const [className, values] = report.row(r);
+          const tr = document.createElement('tr');
+          if (className) tr.className = className;
+          values.forEach((v, i) => tr.appendChild(cell(v, i === 4 ? '' : 'cell-left')));
+          return tr;
+        }));
+      } catch (err) {
+        emptyRow(tbody, report.columns, errorText(err));
+      }
+    }
+
+    // ------------------------------------------------------------------------
+    // Menu actions
+    // ------------------------------------------------------------------------
+    const ACTIONS = {
+      'load': openPicker,
+      'save': () => saveGrant(false),
+      'review': () => saveGrant(true),
+      'report-swb': () => openReport('swb'),
+      'report-gem': () => openReport('gem'),
+      'report-lbd': () => openReport('lbd')
+    };
+
+    document.querySelectorAll('[data-action]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        // Blur first so focus doesn't return to the menu (and reopen it) when a dialog closes
+        btn.blur();
+        ACTIONS[btn.dataset.action]();
+      });
+    });
+
+    setGrantLoaded(false);
+  </script>
+
+</body>
+</html>

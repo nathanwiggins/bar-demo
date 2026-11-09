@@ -1,0 +1,60 @@
+/* Demo banner above the dashboard (not part of the real app) */
+.demo-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+  padding: 8px 20px;
+  background: #2b2f36;
+  color: #f1f3f5;
+  font-family: Arial, sans-serif;
+  font-size: 0.85rem;
+  line-height: 1.4;
+}
+
+.demo-tag {
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: #f8c234;
+  color: #2b2f36;
+  font-weight: bold;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-size: 0.75rem;
+}
+
+.demo-text {
+  flex: 1 1 280px;
+}
+
+.demo-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+
+.demo-user select {
+  margin-left: 6px;
+  padding: 3px 6px;
+  border: 1px solid #5c636e;
+  border-radius: 4px;
+  background: #3a3f47;
+  color: #f1f3f5;
+  font: inherit;
+}
+
+.demo-reset {
+  padding: 4px 12px;
+  border: 1px solid #8a919c;
+  border-radius: 4px;
+  background: transparent;
+  color: #f1f3f5;
+  font: inherit;
+  cursor: pointer;
+}
+
+.demo-reset:hover,
+.demo-reset:focus-visible {
+  background: #3a3f47;
+}
