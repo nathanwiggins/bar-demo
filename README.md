@@ -26,13 +26,14 @@ amount is fictional.
 
 ## How it works
 
-The page is the production `Dashboard.html`, unchanged except for a demo banner and three
-script tags. The real app talks to its server only through `google.script.run`, so the demo
+The page is the production `Dashboard.html`, unchanged except for a demo banner, three
+script tags, and the ID labels (the sample data uses `ID-0000` person IDs and `GR-AAA000`
+grant codes). The real app talks to its server only through `google.script.run`, so the demo
 supplies its own:
 
 | File | What it is |
 | --- | --- |
-| `index.html` | The production dashboard page, plus the demo banner and script tags (marked `Demo only`) |
+| `index.html` | The production dashboard page, plus the demo banner and script tags (marked `Demo only`) and the ID labels |
 | `js/dash-compute.js` | The production budget math (`dashComputeGrant_` and helpers), copied unchanged |
 | `js/demo-data.js` | The sample grants. Dates are relative to today, so each grant shows the same situation whenever it's viewed |
 | `js/demo-server.js` | A stand-in for `google.script.run` that answers the dashboard's server calls from the sample data |
@@ -50,7 +51,9 @@ reminders. Those run in Apps Script against the sheet and aren't part of this de
 ## Updating from the production project
 
 1. Copy the production `Dashboard.html` over `index.html`, then re-add the three blocks
-   marked `Demo only` (the stylesheet link, the banner, and the script tags).
+   marked `Demo only` (the stylesheet link, the banner, and the script tags). Then rename
+   the **PI T-Number** label to **PI ID**, the Salaries, Wages & Benefits report's **T-Number** column to
+   **ID**, and change the Grant Code filter's placeholder to `e.g. GR-AAA000`.
 2. Re-copy the pure calculation section of `DashScripts.js` into `js/dash-compute.js`
    (the `DASH_BAR` constants and everything from `DASH_DEFAULT_LABELS` through
    `dashMergeNotes_`).
